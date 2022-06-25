@@ -11,9 +11,7 @@ import (
 
 // Bot parameters
 var (
-	GuildID = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
-
-	// DO NOT COMMIT THIS
+	GuildID  = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
 	BotToken = flag.String("token", "", "Bot access token")
 )
 
