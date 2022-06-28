@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -130,11 +131,13 @@ var (
 			}
 
 			if !isError {
-				if err := mdb.RespondToAnswer(wouldTakeMoney, counterOffer); err != nil {
+				var totalMoney uint
+				var err error
+				if totalMoney, err = mdb.RespondToAnswer(wouldTakeMoney, counterOffer); err != nil {
 					messageContent = "Whoops, something went wrong. Tell Danny to check the logs."
 					log.Printf("error responding to answer: %v", err)
 				} else {
-					//messageContent = fmt.Sprintf(validAnswerResponsefmt, i.Member.User.Username)
+					messageContent = fmt.Sprintf(mdb.ValidAnswerResponsefmt, i.Member.User.Username, totalMoney)
 				}
 			}
 

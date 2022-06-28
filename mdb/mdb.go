@@ -24,18 +24,19 @@ func (s Stats) GetTotalMoney() uint {
 }
 
 const (
+	// TODO: Probably move these to a different file that contains more discord related stuff.
 	userErrorResponse       = "Dude c'mon, to answer a MDB question please use the following format: `/answer <question ID> <response>`. For example: `/answer 40 yes`"
 	noSuchQuestionResponse  = "Uhh, there's no question with ID %s."
 	answerYesOrNoResponse   = "What are you trying to do? You gotta answer with either 'yes' or 'no'."
 	alreadyAnsweredResponse = "You already answered that one, cheater. Try /stats to see what you've got."
-	validAnswerResponsefmt  = "Cool, answer recorded. <@%s>, you've currently got $%d million! To see your full stats, try /stats"
+	ValidAnswerResponsefmt  = "Cool, answer recorded. <@%s>, you've currently got $%d million! To see your full stats, try /stats"
 )
 
 var (
 	currentStats map[string]Stats
 )
 
-func RespondToAnswer(wouldTakeMoney bool, counterOffer *uint) (int, error) {
+func RespondToAnswer(wouldTakeMoney bool, counterOffer *uint) (uint, error) {
 	if !wouldTakeMoney {
 
 	} else if counterOffer != nil {
