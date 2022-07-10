@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,13 +18,13 @@ var (
 	testStatsSerialized []byte
 
 	expectedStats = map[string]Stats{
-		"first": Stats{
-			AnsweredYesIds: map[uint]uint{0: 1000000, 1: 1000000, 2: 2000000},
-			AnsweredNoIds:  []uint{3, 4, 5},
+		"first": {
+			AnsweredYesIds: map[string]uint{"0": 1000000, "1": 1000000, "2": 2000000},
+			AnsweredNoIds:  map[string]bool{"3": true, "4": true, "5": true},
 		},
-		"second": Stats{
-			AnsweredYesIds: map[uint]uint{0: 1000000},
-			AnsweredNoIds:  []uint{},
+		"second": {
+			AnsweredYesIds: map[string]uint{"0": 1000000},
+			AnsweredNoIds:  map[string]bool{},
 		},
 	}
 )
@@ -68,8 +67,8 @@ func TestSaveStats(t *testing.T) {
 
 		testStats := map[string]Stats{
 			"first": Stats{
-				AnsweredYesIds: map[uint]uint{0: 2000000},
-				AnsweredNoIds:  []uint{},
+				AnsweredYesIds: map[string]uint{"0": 2000000},
+				AnsweredNoIds:  map[string]bool{},
 			},
 		}
 
@@ -108,7 +107,7 @@ func TestLoadStats(t *testing.T) {
 	t.Run("surfaces os error", func(t *testing.T) {
 		_, err := loadStats("./not_a_real_json.json")
 		assert.Error(t, err)
-		assert.True(t, strings.HasPrefix(err.Error(), "error checking file on load:"))
+		assert.ErrorIs(t, err, os.ErrNotExist)
 	})
 }
 

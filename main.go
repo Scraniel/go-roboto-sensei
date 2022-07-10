@@ -15,10 +15,14 @@ import (
 var (
 	GuildID  = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
 	BotToken = flag.String("token", "", "Bot access token")
+	SavePath = flag.String("savePath", "./stats.json", "The file to save / load from.")
 
 	// Unfortunately must be variables instead of constants so that they're addressable.
 	minCounterOfferDollars = float64(0)
 	maxCounterOfferDollars = float64(5000000)
+
+	mdbBot              *mdb.MillionDollarBot
+	lastQuestionAskedId string
 )
 
 const (
@@ -27,9 +31,11 @@ const (
 	noAnswerKey    = "no"
 	maybeAnswerKey = "maybe..."
 
-	millionDollarsButCommand = "mdb"
-	mdbAnswerKey             = "answer"
-	mdbCounterOfferKey       = "counter-offer"
+	millionDollarsButCommand         = "mdb"
+	millionDollarsButQuestionCommand = "mdb?"
+	mdbAnswerKey                     = "answer"
+	mdbCounterOfferKey               = "counter-offer"
+	mdbIdKey                         = "id"
 )
 
 func init() { flag.Parse() }
@@ -79,8 +85,8 @@ var (
 					Required:    false,
 				},
 				{
-					Type:        discordgo.ApplicationCommandOptionInteger,
-					Name:        "id",
+					Type:        discordgo.ApplicationCommandOptionString,
+					Name:        mdbIdKey,
 					Description: "Optionally include question ID to answer a previously asked question. If not provided, the most recently asked question is answered.",
 					Required:    false,
 				},
@@ -106,47 +112,60 @@ var (
 			}
 
 			var messageContent string
-			var wouldTakeMoney bool
-			var counterOffer *uint
-			isError := false
+
+			defer func() {
+				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+					Type: discordgo.InteractionResponseType(discordgo.InteractionResponseChannelMessageWithSource),
+					Data: &discordgo.InteractionResponseData{
+						Content: messageContent,
+					},
+				})
+			}()
+
+			if i.Member == nil {
+				messageContent = "Sorry, you can't use this bot in DMs."
+				return
+			}
+
+			// Get question ID
+			var questionId string
+			if val, ok := optionMap[mdbIdKey]; !ok {
+				if lastQuestionAskedId == "" {
+					messageContent = fmt.Sprintf("No one has asked for any questions yet! Try /%s", millionDollarsButQuestionCommand)
+					return
+				}
+
+				questionId = lastQuestionAskedId
+			} else {
+				// TODO: Validate question has been asked
+				questionId = val.StringValue()
+			}
+
+			// Find playerId, parse answer
+			playerId := i.Member.User.ID
+
+			var counterOffer uint
 			answer := optionMap[mdbAnswerKey].StringValue()
 			switch answer {
 			case yesAnswerKey:
-				wouldTakeMoney = true
+				counterOffer = mdb.OneMillion
 			case noAnswerKey:
-				wouldTakeMoney = false
+				counterOffer = 0
 			case maybeAnswerKey:
 				if val, ok := optionMap[mdbCounterOfferKey]; !ok || val == nil {
 					messageContent = "Make sure to include your `counter-offer` if you're answering `maybe...`!"
-					isError = true
+					return
 				} else {
-					wouldTakeMoney = true
-					counterOfferUint := uint(optionMap[mdbCounterOfferKey].IntValue())
-					counterOffer = &counterOfferUint
+					counterOffer = uint(val.IntValue())
 				}
 			default:
 				messageContent = "You really fucked something up by getting this response. Please tell Danny."
 				log.Printf("we don't know how to handle the answer: %v.", answer)
-				isError = true
+				return
 			}
 
-			if !isError {
-				var totalMoney uint
-				var err error
-				if totalMoney, err = mdb.RespondToAnswer(wouldTakeMoney, counterOffer); err != nil {
-					messageContent = "Whoops, something went wrong. Tell Danny to check the logs."
-					log.Printf("error responding to answer: %v", err)
-				} else {
-					messageContent = fmt.Sprintf(mdb.ValidAnswerResponsefmt, i.Member.User.Username, totalMoney)
-				}
-			}
-
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseType(discordgo.InteractionResponseChannelMessageWithSource),
-				Data: &discordgo.InteractionResponseData{
-					Content: messageContent,
-				},
-			})
+			totalMoney := mdbBot.RespondToAnswer(questionId, playerId, counterOffer)
+			messageContent = fmt.Sprintf(mdb.ValidAnswerResponsefmt, i.Member.User.Username, totalMoney)
 		},
 	}
 )
@@ -189,6 +208,9 @@ func main() {
 	}
 
 	defer session.Close()
+
+	log.Println("Starting mdb...")
+	mdbBot = mdb.NewMillionDollarBot(*SavePath)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
