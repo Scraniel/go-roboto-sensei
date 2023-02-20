@@ -2,7 +2,10 @@ module github.com/Scraniel/go-roboto-sensei
 
 go 1.18
 
-require github.com/bwmarrin/discordgo v0.25.0
+require (
+	github.com/bwmarrin/discordgo v0.25.0
+	github.com/google/uuid v1.3.0
+)
 
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect

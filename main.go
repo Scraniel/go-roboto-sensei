@@ -18,7 +18,7 @@ var (
 	SavePath = flag.String("savePath", "./stats.json", "The file to save / load from.")
 
 	// Unfortunately must be variables instead of constants so that they're addressable.
-	minCounterOfferDollars = float64(0)
+	minCounterOfferDollars = float64(1)
 	maxCounterOfferDollars = float64(5000000)
 
 	mdbBot              *mdb.MillionDollarBot
@@ -131,14 +131,16 @@ var (
 			var questionId string
 			if val, ok := optionMap[mdbIdKey]; !ok {
 				if lastQuestionAskedId == "" {
-					messageContent = fmt.Sprintf("No one has asked for any questions yet! Try /%s", millionDollarsButQuestionCommand)
+					messageContent = fmt.Sprintf("No one has asked for any questions yet! Try `/%s`", millionDollarsButQuestionCommand)
 					return
 				}
 
 				questionId = lastQuestionAskedId
 			} else {
-				// TODO: Validate question has been asked
 				questionId = val.StringValue()
+				if !mdbBot.HasQuestionBeenAsked(questionId) {
+					messageContent = fmt.Sprintf("No question with that ID has been asked! Try `/%s` for a new qustion.", millionDollarsButQuestionCommand)
+				}
 			}
 
 			// Find playerId, parse answer

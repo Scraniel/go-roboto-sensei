@@ -9,13 +9,12 @@ import (
 )
 
 type Stats struct {
-	AnsweredYesIds map[string]uint `json:"answered_yes"`
-	AnsweredNoIds  map[string]bool `json:"answered_no"`
+	Answered map[string]uint `json:"answered"`
 }
 
 func (s Stats) GetTotalMoney() uint {
 	var totalMoney uint = 0
-	for _, cost := range s.AnsweredYesIds {
+	for _, cost := range s.Answered {
 		totalMoney += cost
 	}
 
@@ -33,6 +32,7 @@ const (
 )
 
 type MillionDollarBot struct {
+	askedQuestions    map[string]bool
 	currentStats      map[string]Stats
 	savePath          string
 	willOverwriteSave bool
@@ -56,18 +56,14 @@ func (b *MillionDollarBot) RespondToAnswer(questionId, playerId string, offer ui
 	var playerStats Stats
 	var ok bool
 	if playerStats, ok = b.currentStats[playerId]; !ok {
-		playerStats = Stats{}
+		playerStats = Stats{
+			Answered: make(map[string]uint),
+		}
 	}
 
 	var money uint
+	playerStats.Answered[questionId] = offer
 
-	if offer == 0 {
-		playerStats.AnsweredNoIds[questionId] = true
-		delete(playerStats.AnsweredYesIds, questionId)
-	} else {
-		playerStats.AnsweredYesIds[questionId] = offer
-		delete(playerStats.AnsweredNoIds, questionId)
-	}
 	money = playerStats.GetTotalMoney()
 
 	b.currentStats[playerId] = playerStats
@@ -96,13 +92,18 @@ func (b *MillionDollarBot) LoadStats() error {
 	defer b.lock.Unlock()
 
 	var err error
-	if b.currentStats, err = loadStats(b.savePath); errors.Is(err, os.ErrNotExist) {
+	if b.currentStats, b.askedQuestions, err = loadStats(b.savePath); errors.Is(err, os.ErrNotExist) {
 		b.currentStats = map[string]Stats{}
+		b.askedQuestions = map[string]bool{}
 	} else if err != nil {
 		return fmt.Errorf("error loading stats: %v", err)
 	}
 
 	return nil
+}
+
+func (b *MillionDollarBot) HasQuestionBeenAsked(id string) bool {
+	return b.askedQuestions[id]
 }
 
 func saveStats(stats map[string]Stats, filePath string, overwrite bool) error {
@@ -128,14 +129,14 @@ func saveStats(stats map[string]Stats, filePath string, overwrite bool) error {
 	return nil
 }
 
-func loadStats(filePath string) (map[string]Stats, error) {
+func loadStats(filePath string) (map[string]Stats, map[string]bool, error) {
 	var file *os.File
 	var err error
 	if file, err = os.Open(filePath); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, err
+			return nil, nil, err
 		} else {
-			return nil, fmt.Errorf("error checking file on load: %v", err)
+			return nil, nil, fmt.Errorf("error checking file on load: %v", err)
 		}
 	}
 
@@ -144,8 +145,14 @@ func loadStats(filePath string) (map[string]Stats, error) {
 	var stats map[string]Stats
 	decoder := json.NewDecoder(file)
 	if err = decoder.Decode(&stats); err != nil {
-		return nil, fmt.Errorf("error decoding json: %v", err)
+		return nil, nil, fmt.Errorf("error decoding json: %v", err)
 	}
 
-	return stats, nil
+	askedQuestions := make(map[string]bool)
+	for user := range stats {
+		for key := range stats[user].Answered {
+			askedQuestions[key] = true
+		}
+	}
+	return stats, askedQuestions, nil
 }
