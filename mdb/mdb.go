@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"sync"
+
+	"github.com/Scraniel/go-roboto-sensei/command"
 )
 
 type Stats struct {
@@ -32,42 +34,31 @@ const (
 )
 
 type MillionDollarBot struct {
-	askedQuestions    map[string]bool
-	currentStats      map[string]Stats
-	savePath          string
-	willOverwriteSave bool
-	lock              sync.RWMutex
+	askedQuestions      map[string]bool
+	currentStats        map[string]Stats
+	savePath            string
+	willOverwriteSave   bool
+	lock                sync.RWMutex
+	Commands            []command.Command
+	lastQuestionAskedId string
 }
 
 func NewMillionDollarBot(savePath string) *MillionDollarBot {
-	return &MillionDollarBot{
+	bot := &MillionDollarBot{
 		currentStats:      map[string]Stats{},
 		savePath:          savePath,
 		willOverwriteSave: true,
 	}
-}
 
-// RespondToAnswer stores the offer to questionId made by playerId and returns the total amount of money the player now has
-func (b *MillionDollarBot) RespondToAnswer(questionId, playerId string, offer uint) uint {
-	// TODO: revisit for perf. Probably not a concern unless you want other servers to use this bot.
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	var playerStats Stats
-	var ok bool
-	if playerStats, ok = b.currentStats[playerId]; !ok {
-		playerStats = Stats{
-			Answered: make(map[string]uint),
-		}
+	bot.Commands = []command.Command{
+		{
+			CommandInfo: mdbCommandInfo,
+			Handler:     bot.handleMdb,
+			Key:         mdbKey,
+		},
 	}
 
-	var money uint
-	playerStats.Answered[questionId] = offer
-
-	money = playerStats.GetTotalMoney()
-
-	b.currentStats[playerId] = playerStats
-	return money
+	return bot
 }
 
 // GetStats returns the current stats for playerId

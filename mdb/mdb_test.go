@@ -55,7 +55,7 @@ func TestRespondToAnswer(t *testing.T) {
 		bot := NewMillionDollarBot(path)
 
 		offer := uint(123456)
-		response := bot.RespondToAnswer(questionId, player, offer)
+		response := bot.respondToAnswer(questionId, player, offer)
 		assert.Equal(t, offer, response)
 	})
 
@@ -63,8 +63,8 @@ func TestRespondToAnswer(t *testing.T) {
 		bot := NewMillionDollarBot(path)
 
 		offer := uint(123456)
-		bot.RespondToAnswer(questionId, player, offer)
-		response := bot.RespondToAnswer(questionId+"2", player, offer)
+		bot.respondToAnswer(questionId, player, offer)
+		response := bot.respondToAnswer(questionId+"2", player, offer)
 		assert.Equal(t, offer*2, response)
 	})
 
@@ -72,10 +72,10 @@ func TestRespondToAnswer(t *testing.T) {
 		bot := NewMillionDollarBot(path)
 
 		offer := uint(123456)
-		bot.RespondToAnswer(questionId, player, offer)
+		bot.respondToAnswer(questionId, player, offer)
 
 		offer = 1
-		response := bot.RespondToAnswer(questionId, player, offer)
+		response := bot.respondToAnswer(questionId, player, offer)
 		assert.Equal(t, offer, response)
 	})
 }
