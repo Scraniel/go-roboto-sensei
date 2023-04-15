@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -17,161 +16,19 @@ var (
 	BotToken = flag.String("token", "", "Bot access token")
 	SavePath = flag.String("savePath", "./stats.json", "The file to save / load from.")
 
-	// Unfortunately must be variables instead of constants so that they're addressable.
-	minCounterOfferDollars = float64(1)
-	maxCounterOfferDollars = float64(5000000)
-
 	mdbBot              *mdb.MillionDollarBot
 	lastQuestionAskedId string
-)
-
-const (
-	// TODO: These should probably be in the mdb package, along with the commands, maybe.
-	yesAnswerKey   = "yes"
-	noAnswerKey    = "no"
-	maybeAnswerKey = "maybe..."
-
-	millionDollarsButCommand         = "mdb"
-	millionDollarsButQuestionCommand = "mdb?"
-	mdbAnswerKey                     = "answer"
-	mdbCounterOfferKey               = "counter-offer"
-	mdbIdKey                         = "id"
 )
 
 func init() { flag.Parse() }
 
 var (
-	session  *discordgo.Session
-	commands = []*discordgo.ApplicationCommand{
-		{
-			Name: "basic-command",
-			// All commands and options must have a description
-			// Commands/options without description will fail the registration
-			// of the command.
-			Description: "Basic command",
-		},
-		{
-			Version:     "0.1",
-			Type:        0,
-			Name:        millionDollarsButCommand,
-			Description: "You get a million dollars, but...",
-			Options: []*discordgo.ApplicationCommandOption{
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        mdbAnswerKey,
-					Description: "Would you take the million dollars? Answer `yes`, `no`, or `maybe...` along with your `counter-offer`.",
-					Choices: []*discordgo.ApplicationCommandOptionChoice{
-						{
-							Name:  "Yes, I would take the million dollars.",
-							Value: yesAnswerKey,
-						},
-						{
-							Name:  "No, I would not take the million dollars.",
-							Value: noAnswerKey,
-						},
-						{
-							Name:  "Maybe... would you give me this many dollars instead?",
-							Value: maybeAnswerKey,
-						},
-					},
-					Required: true,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionInteger,
-					Name:        mdbCounterOfferKey,
-					Description: "If you answered `maybe`, include your `counter-offer` in whole dollars. Must be between `0` and `5000000`",
-					MinValue:    &minCounterOfferDollars,
-					MaxValue:    maxCounterOfferDollars,
-					Required:    false,
-				},
-				{
-					Type:        discordgo.ApplicationCommandOptionString,
-					Name:        mdbIdKey,
-					Description: "Optionally include question ID to answer a previously asked question. If not provided, the most recently asked question is answered.",
-					Required:    false,
-				},
-			},
-		},
-	}
-
-	commandHandlers = map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate){
-		"basic-command": func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-				Type: discordgo.InteractionResponseChannelMessageWithSource,
-				Data: &discordgo.InteractionResponseData{
-					Content: "Hey there! Congratulations, you just executed your first slash command",
-				},
-			})
-		},
-		millionDollarsButCommand: func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-			// convert the slice into a map
-			options := i.ApplicationCommandData().Options
-			optionMap := make(map[string]*discordgo.ApplicationCommandInteractionDataOption, len(options))
-			for _, opt := range options {
-				optionMap[opt.Name] = opt
-			}
-
-			var messageContent string
-
-			defer func() {
-				s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-					Type: discordgo.InteractionResponseType(discordgo.InteractionResponseChannelMessageWithSource),
-					Data: &discordgo.InteractionResponseData{
-						Content: messageContent,
-					},
-				})
-			}()
-
-			if i.Member == nil {
-				messageContent = "Sorry, you can't use this bot in DMs."
-				return
-			}
-
-			// Get question ID
-			var questionId string
-			if val, ok := optionMap[mdbIdKey]; !ok {
-				if lastQuestionAskedId == "" {
-					messageContent = fmt.Sprintf("No one has asked for any questions yet! Try `/%s`", millionDollarsButQuestionCommand)
-					return
-				}
-
-				questionId = lastQuestionAskedId
-			} else {
-				questionId = val.StringValue()
-				if !mdbBot.HasQuestionBeenAsked(questionId) {
-					messageContent = fmt.Sprintf("No question with that ID has been asked! Try `/%s` for a new qustion.", millionDollarsButQuestionCommand)
-				}
-			}
-
-			// Find playerId, parse answer
-			playerId := i.Member.User.ID
-
-			var counterOffer uint
-			answer := optionMap[mdbAnswerKey].StringValue()
-			switch answer {
-			case yesAnswerKey:
-				counterOffer = mdb.OneMillion
-			case noAnswerKey:
-				counterOffer = 0
-			case maybeAnswerKey:
-				if val, ok := optionMap[mdbCounterOfferKey]; !ok || val == nil {
-					messageContent = "Make sure to include your `counter-offer` if you're answering `maybe...`!"
-					return
-				} else {
-					counterOffer = uint(val.IntValue())
-				}
-			default:
-				messageContent = "You really fucked something up by getting this response. Please tell Danny."
-				log.Printf("we don't know how to handle the answer: %v.", answer)
-				return
-			}
-
-			totalMoney := mdbBot.RespondToAnswer(questionId, playerId, counterOffer)
-			messageContent = fmt.Sprintf(mdb.ValidAnswerResponsefmt, i.Member.User.Username, totalMoney)
-		},
-	}
+	session         *discordgo.Session
+	commands        []*discordgo.ApplicationCommand
+	commandHandlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)
 )
 
+// Initializes discord library
 func init() {
 	var err error
 	session, err = discordgo.New("Bot " + *BotToken)
@@ -180,7 +37,21 @@ func init() {
 	}
 }
 
+// initializes MDB bot
 func init() {
+	log.Println("Starting mdb...")
+	mdbBot = mdb.NewMillionDollarBot(*SavePath)
+
+	commands = make([]*discordgo.ApplicationCommand, 0, len(mdbBot.Commands))
+	commandHandlers = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate), len(mdbBot.Commands))
+
+	for _, command := range mdbBot.Commands {
+		commands = append(commands, command.CommandInfo)
+		commandHandlers[command.Key] = command.Handler
+	}
+
+	// This adds the handlers themselves. When a person interacts with the bot via a command, this hook is called and
+	// the relevant handler is fired if present.
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
 			h(s, i)
@@ -198,6 +69,7 @@ func main() {
 		log.Fatalf("Cannot open the session: %v", err)
 	}
 
+	// This part registers the commands in Discord so they pop up when you type '/'.
 	log.Println("Adding commands...")
 	registeredCommands := make([]*discordgo.ApplicationCommand, len(commands))
 	for i, v := range commands {
@@ -210,9 +82,6 @@ func main() {
 	}
 
 	defer session.Close()
-
-	log.Println("Starting mdb...")
-	mdbBot = mdb.NewMillionDollarBot(*SavePath)
 
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)

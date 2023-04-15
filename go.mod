@@ -1,9 +1,9 @@
 module github.com/Scraniel/go-roboto-sensei
 
-go 1.18
+go 1.20
 
 require (
-	github.com/bwmarrin/discordgo v0.25.0
+	github.com/bwmarrin/discordgo v0.27.1
 	github.com/google/uuid v1.3.0
 )
 
