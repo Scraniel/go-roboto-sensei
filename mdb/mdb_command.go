@@ -106,9 +106,6 @@ func (m *MillionDollarBot) handleMdb(s *discordgo.Session, i *discordgo.Interact
 		}
 	}
 
-	// Find playerId, parse answer
-	playerId := i.Member.User.ID
-
 	var offer uint
 	answer := optionMap[mdbAnswerKey].StringValue()
 	switch answer {
@@ -129,7 +126,7 @@ func (m *MillionDollarBot) handleMdb(s *discordgo.Session, i *discordgo.Interact
 		return
 	}
 
-	totalMoney := m.respondToAnswer(questionId, playerId, offer)
+	totalMoney := m.respondToAnswer(questionId, i.Member.User.ID, offer)
 	messageContent = fmt.Sprintf(ValidAnswerResponsefmt, i.Member.User.Username, totalMoney)
 }
 
