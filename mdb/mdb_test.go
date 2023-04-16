@@ -10,7 +10,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,39 +44,6 @@ const (
 func TestMain(m *testing.M) {
 	testStatsSerialized = stripWhitespace(testStatsSerialized)
 	m.Run()
-}
-
-func TestRespondToAnswer(t *testing.T) {
-	questionId := uuid.NewString()
-	path := "fake_path"
-	player := uuid.NewString()
-	t.Run("initializes stats to 0", func(t *testing.T) {
-		bot := NewMillionDollarBot(path)
-
-		offer := uint(123456)
-		response := bot.respondToAnswer(questionId, player, offer)
-		assert.Equal(t, offer, response)
-	})
-
-	t.Run("subsequent answers add to total", func(t *testing.T) {
-		bot := NewMillionDollarBot(path)
-
-		offer := uint(123456)
-		bot.respondToAnswer(questionId, player, offer)
-		response := bot.respondToAnswer(questionId+"2", player, offer)
-		assert.Equal(t, offer*2, response)
-	})
-
-	t.Run("reanswering same question updates", func(t *testing.T) {
-		bot := NewMillionDollarBot(path)
-
-		offer := uint(123456)
-		bot.respondToAnswer(questionId, player, offer)
-
-		offer = 1
-		response := bot.respondToAnswer(questionId, player, offer)
-		assert.Equal(t, offer, response)
-	})
 }
 
 func TestSaveStats(t *testing.T) {

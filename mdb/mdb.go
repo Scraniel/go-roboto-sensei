@@ -1,6 +1,7 @@
 package mdb
 
 import (
+	_ "embed"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,18 @@ import (
 	"github.com/Scraniel/go-roboto-sensei/command"
 )
 
+const (
+	OneMillion = uint(1000000)
+)
+
+var (
+	//TODO: Add proper embedding; go doesn't allow deserializtion direct from embed go:embed mdb.json
+	questions map[string]string
+
+	NoSuchQuestionIdError = errors.New("no question with that id exists in our question database")
+)
+
+// TODO: See https://github.com/Scraniel/go-roboto-sensei/issues/11. Extract stats functionality to a Stats struct and have both the bot and the handler take a dependency on that. This is the DB layer.
 type Stats struct {
 	Answered map[string]uint `json:"answered"`
 }
@@ -23,23 +36,15 @@ func (s Stats) GetTotalMoney() uint {
 	return totalMoney
 }
 
-const (
-	// TODO: Probably move these to a different file that contains more discord related stuff.
-	userErrorResponse      = "Dude c'mon, to answer a MDB question please use the following format: `/answer <question ID> <response>`. For example: `/answer 40 yes`"
-	noSuchQuestionResponse = "Uhh, there's no question with ID %s."
-	answerYesOrNoResponse  = "What are you trying to do? You gotta answer with `yes`, `no`, or `maybe...` along with your `counter-offer`."
-	ValidAnswerResponsefmt = "Cool, answer recorded. <@%s>, you've currently got $%d million! To see your full stats, try `/stats`"
-
-	OneMillion = uint(1000000)
-)
-
 type MillionDollarBot struct {
+	// May want to change this to be an interface or struct. It might be useful to have additional functionality in a "QuestionService" or something.
+	questions           map[string]string
 	askedQuestions      map[string]bool
 	currentStats        map[string]Stats
 	savePath            string
 	willOverwriteSave   bool
 	lock                sync.RWMutex
-	Commands            []command.Command
+	Commands            []command.MessageCommand
 	lastQuestionAskedId string
 }
 
@@ -50,35 +55,35 @@ func NewMillionDollarBot(savePath string) *MillionDollarBot {
 		willOverwriteSave: true,
 	}
 
-	bot.Commands = []command.Command{
+	bot.Commands = []command.MessageCommand{
 		{
-			CommandInfo: mdbCommandInfo,
-			Handler:     bot.handleMdb,
-			Key:         mdbKey,
+			CommandInfo: mdbAnswerCommandInfo,
+			Handler:     &AnswerHandler{bot},
+			Key:         answerCommandId,
 		},
 	}
 
 	return bot
 }
 
-// GetStats returns the current stats for playerId
-func (b *MillionDollarBot) GetStats(playerId string) Stats {
+// getStats returns the current stats for playerId
+func (b *MillionDollarBot) getStats(playerId string) Stats {
 	b.lock.RLock()
 	defer b.lock.RUnlock()
 
 	return b.currentStats[playerId]
 }
 
-// SaveStats saves the stats currently in memory to disk
-func (b *MillionDollarBot) SaveStats() error {
+// saveStats saves the stats currently in memory to disk
+func (b *MillionDollarBot) saveStats() error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
 	return saveStats(b.currentStats, b.savePath, b.willOverwriteSave)
 }
 
-// LoadStats loads the stats that are saved on disk, overwriting whatever is in memory
-func (b *MillionDollarBot) LoadStats() error {
+// loadStats loads the stats that are saved on disk, overwriting whatever is in memory
+func (b *MillionDollarBot) loadStats() error {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
@@ -93,7 +98,20 @@ func (b *MillionDollarBot) LoadStats() error {
 	return nil
 }
 
-func (b *MillionDollarBot) HasQuestionBeenAsked(id string) bool {
+func (b *MillionDollarBot) getQuestion(id string) (string, error) {
+	if question, ok := b.questions[id]; !ok {
+		return "", NoSuchQuestionIdError
+	} else {
+		return question, nil
+	}
+}
+
+func (b *MillionDollarBot) getUnaskedQuestion() string {
+	// Simple right now - just generate a random number
+	return ""
+}
+
+func (b *MillionDollarBot) hasQuestionBeenAsked(id string) bool {
 	return b.askedQuestions[id]
 }
 

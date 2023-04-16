@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/Scraniel/go-roboto-sensei/command"
 	"github.com/Scraniel/go-roboto-sensei/mdb"
 	"github.com/bwmarrin/discordgo"
 )
@@ -25,7 +26,7 @@ func init() { flag.Parse() }
 var (
 	session         *discordgo.Session
 	commands        []*discordgo.ApplicationCommand
-	commandHandlers map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate)
+	commandHandlers map[string]command.MessageHandler
 )
 
 // Initializes discord library
@@ -43,7 +44,7 @@ func init() {
 	mdbBot = mdb.NewMillionDollarBot(*SavePath)
 
 	commands = make([]*discordgo.ApplicationCommand, 0, len(mdbBot.Commands))
-	commandHandlers = make(map[string]func(s *discordgo.Session, i *discordgo.InteractionCreate), len(mdbBot.Commands))
+	commandHandlers = make(map[string]command.MessageHandler, len(mdbBot.Commands))
 
 	for _, command := range mdbBot.Commands {
 		commands = append(commands, command.CommandInfo)
@@ -53,8 +54,29 @@ func init() {
 	// This adds the handlers themselves. When a person interacts with the bot via a command, this hook is called and
 	// the relevant handler is fired if present.
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
+
+		// TODO: Handlers ideally shouldn't care about discord stuff. All they should *need* to do is accept some options
+		// and return a message.
+		optionMap := command.ToMap(i.ApplicationCommandData().Options)
+
+		var messageContent string
+
+		defer func() {
+			s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseType(discordgo.InteractionResponseChannelMessageWithSource),
+				Data: &discordgo.InteractionResponseData{
+					Content: messageContent,
+				},
+			})
+		}()
+
+		if i.Member == nil {
+			messageContent = "Sorry, you can't use this bot in DMs."
+			return
+		}
+
 		if h, ok := commandHandlers[i.ApplicationCommandData().Name]; ok {
-			h(s, i)
+			messageContent = h.Handle(i.Member, optionMap)
 		}
 	})
 }
