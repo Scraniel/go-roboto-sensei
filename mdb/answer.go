@@ -57,7 +57,7 @@ var (
 				Required: true,
 			},
 			{
-				Type:        discordgo.ApplicationCommandOptionInteger,
+				Type:        discordgo.ApplicationCommandOptionNumber,
 				Name:        counterOfferOptionId,
 				Description: "Used with `maybe...`, include a `counter-offer`. Must be between `0` and `5000000`.",
 				MinValue:    &minCounterOfferDollars,
@@ -97,7 +97,7 @@ func (h *AnswerHandler) Handle(caller *discordgo.Member, options map[string]inte
 		if val, ok := options[counterOfferOptionId]; !ok || val == nil {
 			return "Make sure to include your `counter-offer` if you're answering `maybe...`!"
 		} else {
-			offer = val.(uint)
+			offer = uint(val.(float64))
 		}
 	default:
 		log.Printf("we don't know how to handle the answer: %v.", choice)
@@ -119,20 +119,21 @@ func (h *AnswerHandler) Handle(caller *discordgo.Member, options map[string]inte
 	}
 
 	stats := h.storage.UpdateStats(questionId, caller.User.ID, offer)
-	return getResponse(questionId, caller.User.ID, offer, stats)
+	return getResponse(questionId, caller.User, offer, stats)
 }
 
-func getResponse(questionId string, username string, offer uint, stats storage.PlayerStats) string {
+func getResponse(questionId string, asker *discordgo.User, offer uint, stats storage.PlayerStats) string {
+	printer := message.NewPrinter(language.English)
+
 	var answer string
 	if offer == 0 {
 		answer = "no"
 	} else if offer == OneMillion {
 		answer = "yes"
 	} else {
-		printer := message.NewPrinter(language.English)
 		answer = printer.Sprintf("yes... but only if you give me $%d!", offer)
 	}
 
 	millions := float64(stats.GetTotalMoney()) / float64(OneMillion)
-	return fmt.Sprintf("Thanks @%s, you answered `%s`! You've currently got $%d million! To see your full stats, try `/stats`", username, answer, millions)
+	return fmt.Sprintf("Thanks %s, for question ID `%s` you answered `%s`! You've currently got $%.2f million! To see your full stats, try `/stats`", asker.Mention(), questionId, answer, millions)
 }
