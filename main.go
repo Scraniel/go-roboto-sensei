@@ -17,8 +17,7 @@ var (
 	BotToken = flag.String("token", "", "Bot access token")
 	SavePath = flag.String("savePath", "./stats.json", "The file to save / load from.")
 
-	mdbBot              *mdb.MillionDollarBot
-	lastQuestionAskedId string
+	mdbBot *mdb.MillionDollarBot
 )
 
 func init() { flag.Parse() }
@@ -57,11 +56,8 @@ func init() {
 	// This adds the handlers themselves. When a person interacts with the bot via a command, this hook is called and
 	// the relevant handler is fired if present.
 	session.AddHandler(func(s *discordgo.Session, i *discordgo.InteractionCreate) {
-
-		// TODO: Handlers ideally shouldn't care about discord stuff. All they should *need* to do is accept some options
-		// and return a message.
 		optionMap := command.ToMap(i.ApplicationCommandData().Options)
-		log.Printf("WE'RE GETTING SHIT!")
+		log.Printf("%s command recieved from %s", i.ApplicationCommandData().Name, i.Member.Nick)
 		var messageContent string
 
 		defer func() {
