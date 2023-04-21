@@ -15,6 +15,9 @@ jobs:
           with:
             go-version: 1.20
 
+        - name: Vendor
+          run: go mod vendor
+
         - name: Build
           run: go build -v ./...
 
