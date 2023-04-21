@@ -1,4 +1,4 @@
-package mdb
+package storage
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,7 +18,7 @@ var (
 	//go:embed test_stats.json
 	testStatsSerialized []byte
 
-	expectedStats = map[string]Stats{
+	expectedStats = map[string]PlayerStats{
 		"first": {
 			Answered: map[string]uint{"0": 1000000, "1": 1000000, "2": 2000000, "3": 0, "4": 0, "5": 0},
 		},
@@ -73,7 +74,7 @@ func TestSaveStats(t *testing.T) {
 		err = destination.Close()
 		assert.NoError(t, err)
 
-		testStats := map[string]Stats{
+		testStats := map[string]PlayerStats{
 			"first": {
 				Answered: map[string]uint{"0": 2000000},
 			},
@@ -94,7 +95,7 @@ func TestSaveStats(t *testing.T) {
 
 			decoder := json.NewDecoder(file)
 
-			var savedStats map[string]Stats
+			var savedStats map[string]PlayerStats
 
 			err = decoder.Decode(&savedStats)
 			assert.NoError(t, err)
@@ -126,4 +127,40 @@ func stripWhitespace(input []byte) []byte {
 	}
 
 	return buffer.Bytes()
+}
+
+func TestRespondToAnswer(t *testing.T) {
+	questionId := uuid.NewString()
+	path := "fake_path"
+	player := uuid.NewString()
+	t.Run("initializes stats to 0", func(t *testing.T) {
+		storage, err := NewLocalStorage(path)
+		assert.NoError(t, err)
+
+		offer := uint(123456)
+		response := storage.UpdateStats(questionId, player, offer)
+		assert.Equal(t, offer, response.GetTotalMoney())
+	})
+
+	t.Run("subsequent answers add to total", func(t *testing.T) {
+		storage, err := NewLocalStorage(path)
+		assert.NoError(t, err)
+
+		offer := uint(123456)
+		storage.UpdateStats(questionId, player, offer)
+		response := storage.UpdateStats(questionId+"2", player, offer)
+		assert.Equal(t, offer*2, response.GetTotalMoney())
+	})
+
+	t.Run("reanswering same question updates", func(t *testing.T) {
+		storage, err := NewLocalStorage(path)
+		assert.NoError(t, err)
+
+		offer := uint(123456)
+		storage.UpdateStats(questionId, player, offer)
+
+		offer = 1
+		response := storage.UpdateStats(questionId, player, offer)
+		assert.Equal(t, offer, response.GetTotalMoney())
+	})
 }

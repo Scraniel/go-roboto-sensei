@@ -41,7 +41,10 @@ func init() {
 // initializes MDB bot
 func init() {
 	log.Println("Starting mdb...")
-	mdbBot = mdb.NewMillionDollarBot(*SavePath)
+	mdbBot, err := mdb.NewMillionDollarBot(*SavePath)
+	if err != nil {
+		log.Fatalf("something broke while starting the bot: %v", err)
+	}
 
 	commands = make([]*discordgo.ApplicationCommand, 0, len(mdbBot.Commands))
 	commandHandlers = make(map[string]command.MessageHandler, len(mdbBot.Commands))
@@ -58,7 +61,7 @@ func init() {
 		// TODO: Handlers ideally shouldn't care about discord stuff. All they should *need* to do is accept some options
 		// and return a message.
 		optionMap := command.ToMap(i.ApplicationCommandData().Options)
-
+		log.Printf("WE'RE GETTING SHIT!")
 		var messageContent string
 
 		defer func() {

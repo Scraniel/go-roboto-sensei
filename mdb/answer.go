@@ -4,15 +4,16 @@ import (
 	"fmt"
 	"log"
 
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
+
+	"github.com/Scraniel/go-roboto-sensei/mdb/storage"
 	"github.com/bwmarrin/discordgo"
 )
 
 const (
-	commandVersion = "0.1"
-
-	answerCommandId = "answer"
-
-	questionIdOptionId = "id"
+	answerCommandVersion = "0.1"
+	answerCommandId      = "answer"
 
 	counterOfferOptionId = "counter-offer"
 
@@ -21,7 +22,7 @@ const (
 	noChoiceKey    = "no"
 	maybeChoiceKey = "maybe..."
 
-	ValidAnswerResponsefmt = "Cool, answer recorded. <@%s>, you've currently got $%d million! To see your full stats, try `/stats`"
+	questionIdOptionId = "id"
 )
 
 var (
@@ -29,16 +30,16 @@ var (
 	minCounterOfferDollars = float64(1)
 	maxCounterOfferDollars = float64(5000000)
 
-	mdbAnswerCommandInfo = &discordgo.ApplicationCommand{
-		Version:     commandVersion,
+	answerCommandInfo = &discordgo.ApplicationCommand{
+		Version:     answerCommandVersion,
 		Type:        discordgo.ChatApplicationCommand,
-		Name:        "million-dollars-but-answer",
+		Name:        answerCommandId,
 		Description: "Would you take the million dollars? Answer here!",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        choiceOptionId,
-				Description: "Would you take the million dollars? Answer `yes`, `no`, or `maybe...` along with your `counter-offer`.",
+				Description: "Would you take the million dollars? Answer `yes`, `no`, or `maybe...` (with a `counter-offer`).",
 				Choices: []*discordgo.ApplicationCommandOptionChoice{
 					{
 						Name:  "Yes, I would take the million dollars.",
@@ -58,7 +59,7 @@ var (
 			{
 				Type:        discordgo.ApplicationCommandOptionInteger,
 				Name:        counterOfferOptionId,
-				Description: "If you answered `maybe...`, include your `counter-offer` in whole dollars. Must be between `0` and `5000000`. Will be ignored if you answered `yes` or `no`.",
+				Description: "Used with `maybe...`, include a `counter-offer`. Must be between `0` and `5000000`.",
 				MinValue:    &minCounterOfferDollars,
 				MaxValue:    maxCounterOfferDollars,
 				Required:    false,
@@ -66,7 +67,7 @@ var (
 			{
 				Type:        discordgo.ApplicationCommandOptionString,
 				Name:        questionIdOptionId,
-				Description: "Optionally include question ID to answer a previously asked question. If not provided, the most recently asked question is answered.",
+				Description: "Optional: ID of a previously asked question. Defaults to most recently asked question.",
 				Required:    false,
 			},
 		},
@@ -74,7 +75,7 @@ var (
 )
 
 type AnswerHandler struct {
-	bot *MillionDollarBot
+	storage storage.Storage
 }
 
 func (h *AnswerHandler) Handle(caller *discordgo.Member, options map[string]interface{}) string {
@@ -100,47 +101,38 @@ func (h *AnswerHandler) Handle(caller *discordgo.Member, options map[string]inte
 		}
 	default:
 		log.Printf("we don't know how to handle the answer: %v.", choice)
-		return "You really fucked something up by getting this response. Please tell Danny."
+		return "Something fucky's going on if you're getting this response. Please tell Danny."
 	}
 
-	return h.answer(caller, questionId, offer)
-}
-
-func (h *AnswerHandler) answer(caller *discordgo.Member, questionId string, offer uint) string {
 	if questionId == "" {
-		if h.bot.lastQuestionAskedId == "" {
+		mostRecentQuestion, err := h.storage.GetMostRecentQuestionId()
+		if err == storage.ErrNoQuestionsAsked {
 			return fmt.Sprintf("No one has asked for any questions yet (or my memory has been reset)! Try `/%s`", questionCommandId)
+		} else if err != nil {
+			log.Printf("GetMostRecentQuestionId returned an error: %v.", err)
+			return "You shouldn't be able to get this message. Good job. Plase tell Danny."
 		}
 
-		questionId = h.bot.lastQuestionAskedId
-	} else if !h.bot.hasQuestionBeenAsked(questionId) {
+		questionId = mostRecentQuestion
+	} else if !h.storage.HasQuestionBeenAsked(questionId) {
 		return fmt.Sprintf("No question with that ID has been asked! Try `/%s` for a new qustion.", questionCommandId)
 	}
 
-	totalMoney := h.bot.updateAnswerStats(questionId, caller.User.ID, offer)
-	return fmt.Sprintf(ValidAnswerResponsefmt, caller.User.Username, totalMoney)
+	stats := h.storage.UpdateStats(questionId, caller.User.ID, offer)
+	return getResponse(questionId, caller.User.ID, offer, stats)
 }
 
-// RespondToAnswer stores the offer to questionId made by playerId and returns the total amount of money the player now has
-// TODO: Should this be in MillionDollarBot or AnswerHandler?
-func (b *MillionDollarBot) updateAnswerStats(questionId, playerId string, offer uint) uint {
-	// TODO: revisit for perf. Probably not a concern unless you want other servers to use this bot.
-	b.lock.Lock()
-	defer b.lock.Unlock()
-
-	var playerStats Stats
-	var ok bool
-	if playerStats, ok = b.currentStats[playerId]; !ok {
-		playerStats = Stats{
-			Answered: make(map[string]uint),
-		}
+func getResponse(questionId string, username string, offer uint, stats storage.PlayerStats) string {
+	var answer string
+	if offer == 0 {
+		answer = "no"
+	} else if offer == OneMillion {
+		answer = "yes"
+	} else {
+		printer := message.NewPrinter(language.English)
+		answer = printer.Sprintf("yes... but only if you give me $%d!", offer)
 	}
 
-	var money uint
-	playerStats.Answered[questionId] = offer
-
-	money = playerStats.GetTotalMoney()
-
-	b.currentStats[playerId] = playerStats
-	return money
+	millions := float64(stats.GetTotalMoney()) / float64(OneMillion)
+	return fmt.Sprintf("Thanks @%s, you answered `%s`! You've currently got $%d million! To see your full stats, try `/stats`", username, answer, millions)
 }
