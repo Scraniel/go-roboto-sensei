@@ -22,9 +22,11 @@ Responses are stored by the bot to be retrieved later via the `/stats` command!
 
 ### CI/CD
 #### `release-please`
-I use a great tool called [`release-please`]() to manage a changelog / versioning. Highly recommended for any size of project.
+I use a great tool called [`release-please`](https://github.com/googleapis/release-please) to manage a changelog / versioning. Highly recommended for any size of project.
 
 ## Upcoming
+
+See [Issues](https://github.com/Scraniel/go-roboto-sensei/issues) for a full list of upcoming changes. Here is a shortlist of my favourite upcoming stuff.
 
 ### `/stats`
 The last core feature to implement! Will display how much money you have and what your life looks like now that you have to do all this crazy stuff. 
