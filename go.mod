@@ -1,11 +1,12 @@
 module github.com/Scraniel/go-roboto-sensei
 
-go 1.20
+go 1.24
 
 require (
-	github.com/bwmarrin/discordgo v0.27.1
-	github.com/google/uuid v1.3.0
-	golang.org/x/text v0.3.3
+	github.com/bwmarrin/discordgo v0.28.1
+	github.com/google/uuid v1.6.0
+	github.com/magefile/mage v1.15.0
+	golang.org/x/text v0.22.0
 )
 
 require (
@@ -15,8 +16,8 @@ require (
 )
 
 require (
-	github.com/gorilla/websocket v1.4.2 // indirect
-	github.com/stretchr/testify v1.7.5
-	golang.org/x/crypto v0.0.0-20210421170649-83a5a9bb288b // indirect
-	golang.org/x/sys v0.0.0-20201119102817-f84b799fce68 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
+	github.com/stretchr/testify v1.10.0
+	golang.org/x/crypto v0.33.0 // indirect
+	golang.org/x/sys v0.30.0 // indirect
 )

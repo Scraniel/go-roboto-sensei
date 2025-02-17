@@ -11,6 +11,7 @@
 *.dll
 *.so
 *.dylib
+bin/
 
 # Test binary, built with `go test -c`
 *.test
@@ -37,5 +38,8 @@ go.work
 # Ignore all local history of files
 .history
 .ionide
+
+# Environment file (may contain secrets)
+.env
 
 # End of https://www.toptal.com/developers/gitignore/api/go,visualstudiocode

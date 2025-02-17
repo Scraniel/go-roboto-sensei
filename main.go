@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -13,11 +14,8 @@ import (
 
 // Bot parameters
 var (
-	GuildID  = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
-	BotToken = flag.String("token", "", "Bot access token")
-	SavePath = flag.String("savePath", "./stats.json", "The file to save / load from.")
-
-	mdbBot *mdb.MillionDollarBot
+	GuildID = flag.String("guild", "", "Test guild ID. If not passed - bot registers commands globally")
+	mdbBot  *mdb.MillionDollarBot
 )
 
 func init() { flag.Parse() }
@@ -30,8 +28,13 @@ var (
 
 // Initializes discord library
 func init() {
+	botToken := os.Getenv("BOT_TOKEN")
+	if botToken == "" {
+		log.Fatal("BOT_TOKEN is not set!")
+	}
+
 	var err error
-	session, err = discordgo.New("Bot " + *BotToken)
+	session, err = discordgo.New("Bot " + botToken)
 	if err != nil {
 		log.Fatalf("Invalid bot parameters: %v", err)
 	}
@@ -40,7 +43,13 @@ func init() {
 // initializes MDB bot
 func init() {
 	log.Println("Starting mdb...")
-	mdbBot, err := mdb.NewMillionDollarBot(*SavePath)
+	savePath := os.Getenv("SAVE_PATH")
+	if savePath == "" {
+		fmt.Println("SAVE_PATH is not set - using ./stats.json!")
+		savePath = "./stats.json"
+	}
+
+	mdbBot, err := mdb.NewMillionDollarBot(savePath)
 	if err != nil {
 		log.Fatalf("something broke while starting the bot: %v", err)
 	}
